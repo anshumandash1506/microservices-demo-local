@@ -1,7 +1,8 @@
-# GitHub Actions CI pipeline for microservices-demo-local
-# This workflow builds and tests backend and frontend Docker images on every push
+# .github/workflows/cicd.yml
+# GitHub Actions CI/CD pipeline for microservices-demo-local
+# Builds Docker images, saves artifacts, initializes DB, tests containers
 
-name: CI
+name: CI/CD
 
 on:
   push:
@@ -10,7 +11,7 @@ on:
     branches: [ main ]
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
     services:
       db:
@@ -21,7 +22,8 @@ jobs:
         ports:
           - 3306:3306
         options: >-
-          --health-cmd="mysqladmin ping -h localhost" --health-interval=3s --health-timeout=3s --health-retries=2
+          --health-cmd="mysqladmin ping -h localhost" --health-interval=3s --health-timeout=3s --health-retries=5
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -29,7 +31,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-
+      # --- Build Images ---
       - name: Build backend image
         uses: docker/build-push-action@v5
         with:
@@ -44,9 +46,29 @@ jobs:
           tags: frontend:test
           load: true
 
+      # --- Save images as artifacts ---
+      - name: Save backend image
+        run: docker save backend:test -o backend_test.tar
+
+      - name: Upload backend artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: backend-image
+          path: backend_test.tar
+
+      - name: Save frontend image
+        run: docker save frontend:test -o frontend_test.tar
+
+      - name: Upload frontend artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: frontend-image
+          path: frontend_test.tar
+
+      # --- Wait for DB ---
       - name: Wait for MySQL to be ready
         run: |
-          for i in {1..5}; do
+          for i in {1..10}; do
             if mysql -h127.0.0.1 -uroot -pexample -e "USE demo;" ; then
               echo "MySQL is up!"
               break
@@ -55,21 +77,50 @@ jobs:
             sleep 2
           done
 
+      # --- Initialize DB ---
       - name: Initialize database schema and user
         run: |
           mysql -h127.0.0.1 -uroot -pexample demo < backend/init.sql
 
+      # --- Test Backend ---
       - name: Test backend container
         run: |
-          docker run --rm --network host -e PORT=5000 -e DB_HOST=localhost -e DB_USER=testuser -e DB_PASSWORD=testpass -e DB_NAME=demo backend:test &
-          sleep 4
+          docker run --rm --network host \
+            -e PORT=5000 \
+            -e DB_HOST=localhost \
+            -e DB_USER=testuser \
+            -e DB_PASSWORD=testpass \
+            -e DB_NAME=demo backend:test &
+          sleep 6
           curl -f http://localhost:5000/api/users
 
+      # --- Test Frontend ---
       - name: Test frontend container
         run: |
-          docker run --rm --network host -e PORT=3000 -e BACKEND_URL=http://localhost:5000 frontend:test &
-          sleep 4
+          docker run --rm --network host \
+            -e PORT=3000 \
+            -e BACKEND_URL=http://localhost:5000 frontend:test &
+          sleep 6
           curl -f http://localhost:3000/
 
-# This workflow ensures Docker images build and basic endpoints respond
-# You can extend it to push images or deploy to Kubernetes
+      # --- Optional: Push images to GHCR (uncomment if needed) ---
+      # - name: Log in to GitHub Container Registry
+      #   uses: docker/login-action@v2
+      #   with:
+      #     registry: ghcr.io
+      #     username: ${{ github.actor }}
+      #     password: ${{ secrets.GITHUB_TOKEN }}
+
+      # - name: Push backend image
+      #   uses: docker/build-push-action@v5
+      #   with:
+      #     context: ./backend
+      #     tags: ghcr.io/<username>/backend:test
+      #     push: true
+
+      # - name: Push frontend image
+      #   uses: docker/build-push-action@v5
+      #   with:
+      #     context: ./frontend
+      #     tags: ghcr.io/<username>/frontend:test
+      #     push: true

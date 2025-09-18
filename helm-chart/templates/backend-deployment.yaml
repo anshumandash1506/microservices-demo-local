@@ -12,6 +12,14 @@ spec:
       labels:
         app: backend
     spec:
+      initContainers:
+        - name: wait-for-db
+          image: busybox
+          command: ["sh", "-c"]
+          args:
+            - >
+              until kubectl get job db-init -o jsonpath='{.status.succeeded}' | grep 1;
+              do echo "Waiting for DB init..."; sleep 3; done
       containers:
         - name: backend
           image: {{ .Values.backend.image }}

@@ -45,6 +45,39 @@ spec:
           persistentVolumeClaim:
             claimName: mysql-pvc
 ---
+# One-shot Job to initialize DB schema and seed data
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-init
+spec:
+  template:
+    spec:
+      containers:
+        - name: db-init
+          image: {{ .Values.db.image }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - >
+              mysql -h db -P 3306 -u{{ .Values.db.user }} -p{{ .Values.db.password }} {{ .Values.db.database }} < /sql/init.sql;
+          volumeMounts:
+            - name: init-sql
+              mountPath: /sql
+      restartPolicy: OnFailure
+      volumes:
+        - name: init-sql
+          configMap:
+            name: db-init-sql
+---
+# ConfigMap containing init.sql
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db-init-sql
+data:
+  init.sql: |
+{{ .Files.Get "backend/init.sql" | indent 4 }}
+---
 apiVersion: v1
 kind: Service
 metadata:
