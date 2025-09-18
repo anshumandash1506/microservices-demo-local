@@ -1,0 +1,22 @@
+# Default values for microservices-demo
+backend:
+  image: backend:test
+  replicaCount: 1
+  env:
+    DB_HOST: db
+    DB_USER: testuser
+    DB_PASSWORD: testpass
+    DB_NAME: demo
+    PORT: 5000
+frontend:
+  image: frontend:test
+  replicaCount: 1
+  env:
+    BACKEND_URL: http://backend:5000
+    PORT: 3000
+db:
+  image: mysql:8.4
+  rootPassword: example
+  database: demo
+  user: testuser
+  password: testpass

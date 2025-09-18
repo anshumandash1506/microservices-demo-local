@@ -1,0 +1,21 @@
+backend:
+  image: backend:staging
+  replicaCount: 2
+  env:
+    DB_HOST: db
+    DB_USER: staguser
+    DB_PASSWORD: stagpass
+    DB_NAME: stag_db
+    PORT: 5000
+frontend:
+  image: frontend:staging
+  replicaCount: 2
+  env:
+    BACKEND_URL: http://backend:5000
+    PORT: 3000
+db:
+  image: mysql:8.4
+  rootPassword: stagroot
+  database: stag_db
+  user: staguser
+  password: stagpass

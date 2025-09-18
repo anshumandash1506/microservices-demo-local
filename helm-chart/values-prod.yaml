@@ -1,0 +1,21 @@
+backend:
+  image: backend:prod
+  replicaCount: 3
+  env:
+    DB_HOST: db
+    DB_USER: produser
+    DB_PASSWORD: prodpass
+    DB_NAME: prod_db
+    PORT: 5000
+frontend:
+  image: frontend:prod
+  replicaCount: 3
+  env:
+    BACKEND_URL: https://api.example.com
+    PORT: 3000
+db:
+  image: mysql:8.4
+  rootPassword: prodroot
+  database: prod_db
+  user: produser
+  password: prodpass
