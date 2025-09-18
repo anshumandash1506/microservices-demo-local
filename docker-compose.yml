@@ -1,0 +1,62 @@
+# Docker Compose file for microservices demo
+version: '3.9'
+
+services:
+  backend:
+    build:
+      context: ./backend
+    container_name: backend
+    environment:
+      - PORT=5000
+      - DB_HOST=db
+      - DB_USER=root
+      - DB_PASSWORD=example
+      - DB_NAME=demo
+    ports:
+      - "5000:5000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/users"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # The backend connects to the database using environment variables
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: frontend
+    environment:
+      - PORT=3000
+      - BACKEND_URL=http://backend:5000
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # The frontend calls the backend using the internal Docker network
+
+  db:
+    image: mysql:8.4
+    container_name: db
+    environment:
+      - MYSQL_ROOT_PASSWORD=example
+      - MYSQL_DATABASE=demo
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Official MySQL image, configured via environment variables
+
+# Networks are created automatically by Compose for service communication
+# All services share the same default network for easy discovery
