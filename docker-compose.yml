@@ -1,13 +1,31 @@
-# Docker Compose file for microservices demo
 version: '3.9'
 
 services:
+  db:
+    image: mysql:8.0
+    container_name: db
+    environment:
+      MYSQL_ROOT_PASSWORD: example
+      MYSQL_DATABASE: demo
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 3s
+      retries: 5
+
   backend:
-    build:
-      context: ./backend
+    image: backend:test
     container_name: backend
-    env_file:
-      - ./envs/development/.env
+    environment:
+      DB_HOST: db
+      DB_USER: testuser
+      DB_PASSWORD: testpass
+      DB_NAME: demo
+      DB_PORT: 3306
+      PORT: 5000
     ports:
       - "5000:5000"
     depends_on:
@@ -16,16 +34,14 @@ services:
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/api/users"]
       interval: 3s
-      timeout: 3s
-      retries: 2
-    # The backend connects to the database using environment variables
+      retries: 5
 
   frontend:
-    build:
-      context: ./frontend
+    image: frontend:test
     container_name: frontend
-    env_file:
-      - ./envs/development/.env
+    environment:
+      BACKEND_URL: http://backend:5000
+      PORT: 3000
     ports:
       - "3000:3000"
     depends_on:
@@ -34,24 +50,8 @@ services:
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/"]
       interval: 3s
-      timeout: 3s
-      retries: 2
-    # The frontend calls the backend using the internal Docker network
+      retries: 5
 
-  db:
-    image: mysql:8.4
-    container_name: db
-    environment:
-      - MYSQL_ROOT_PASSWORD=example
-      - MYSQL_DATABASE=demo
-    ports:
-      - "3306:3306"
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 3s
-      timeout: 3s
-      retries: 2
-    # Official MySQL image, configured via environment variables
-
-# Networks are created automatically by Compose for service communication
-# All services share the same default network for easy discovery
+networks:
+  default:
+    name: micro-demo-net
